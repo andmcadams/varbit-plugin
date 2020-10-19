@@ -31,6 +31,6 @@ public class VarbitUpdate
 	@Override
 	public String toString()
 	{
-		return "{\"index\": " + varbitNumber + ",\"oldValue\":" + old + ",\"newValue\":" + neew + ",\"tick\":" + tick + "}";
+		return "{\"index\":" + varbitNumber + ",\"oldValue\":" + old + ",\"newValue\":" + neew + ",\"tick\":" + tick + "}";
 	}
 }
