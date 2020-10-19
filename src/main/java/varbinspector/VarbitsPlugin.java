@@ -107,7 +107,7 @@ public class VarbitsPlugin extends Plugin
 			int neew = client.getVarbitValue(varps, i);
 			if (old != neew)
 			{
-				client.setVarbitValue(oldVarps2, i, neew);
+				client.setVarbitValue(oldVarps, i, neew);
 
 				String name = Integer.toString(i);
 				for (Varbits varbit : Varbits.values())
@@ -135,27 +135,30 @@ public class VarbitsPlugin extends Plugin
 		// Update tick value.
 		tick = client.getTickCount();
 
-		// Clone the vector for synch safety.
-		Vector<VarbitUpdate> updatesClone = (Vector) updatesToPush.clone();
+		// Clone the vector for sync safety.
+		if (updatesToPush.size() > 0)
+		{
+			Vector<VarbitUpdate> updatesClone = (Vector) updatesToPush.clone();
 
-		// Every game tick, push out all varbit updates.
+			// Every game tick, push out all varbit updates.
 
-		// Construct the params for the POST request.
-		// Session needs to be uniquely generated
-		int session = 0;
-		String requestBody = "{\"session\": \"" + session + "\",\"info\":[";
-		requestBody += StringUtils.join(updatesClone, ',');
-		requestBody += "]}";
+			// Construct the params for the POST request.
+			// Session needs to be uniquely generated
+			int session = 0;
+			String requestBody = "{\"session\": \"" + session + "\",\"info\":[";
+			requestBody += StringUtils.join(updatesClone, ',');
+			requestBody += "]}";
 
-		log.info(requestBody);
-		// Construct the request.
-		HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://localhost:3001/update")).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
+			log.info(requestBody);
+			// Construct the request.
+			HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://localhost:3001/updateMany")).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
 
-		// Send out async request.
-		// httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+			// Send out async request.
+			httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
 
-		// Clear the updates that have been pushed.
-		updatesToPush.removeAll(updatesClone);
+			// Clear the updates that have been pushed.
+			updatesToPush.removeAll(updatesClone);
+		}
 	}
 
 	@Provides
