@@ -97,6 +97,8 @@ public class VarbitsPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		log.info("Varbits started!");
+		session = UUID.randomUUID().toString();
+		log.info("Session key is: " + session);
 	}
 
 	private void beginRecording()
@@ -104,7 +106,6 @@ public class VarbitsPlugin extends Plugin
 		isRunningLock.writeLock().lock();
 		try {
 			varbits = HashMultimap.create();
-			session = UUID.randomUUID().toString();
 			updatesToPush = new Vector<>();
 
 			if(oldVarps == null)
@@ -137,7 +138,8 @@ public class VarbitsPlugin extends Plugin
 		{
 			isRunning = false;
 			oldVarps = null;
-			session = null;
+			// Generate a new session key
+			session = UUID.randomUUID().toString();
 		}
 		finally
 		{
@@ -201,33 +203,43 @@ public class VarbitsPlugin extends Plugin
 	@Subscribe
 	public void onVarbitChanged(VarbitChanged varbitChanged)
 	{
-		int index = varbitChanged.getIndex();
-		int[] varps = client.getVarps();
-
-		for (int i : varbits.get(index))
+		isRunningLock.readLock().lock();
+		try
 		{
-			int old = client.getVarbitValue(oldVarps, i);
-			int neew = client.getVarbitValue(varps, i);
-			if (old != neew)
+			if (isRunning)
 			{
-				client.setVarbitValue(oldVarps, i, neew);
+				int index = varbitChanged.getIndex();
+				int[] varps = client.getVarps();
 
-				String name = Integer.toString(i);
-				for (Varbits varbit : Varbits.values())
+				for (int i : varbits.get(index))
 				{
-					if (varbit.getId() == i)
+					int old = client.getVarbitValue(oldVarps, i);
+					int neew = client.getVarbitValue(varps, i);
+					if (old != neew)
 					{
-						name = String.format("%s(%d)", varbit.name(), i);
-						break;
+						client.setVarbitValue(oldVarps, i, neew);
+
+						String name = Integer.toString(i);
+						for (Varbits varbit : Varbits.values())
+						{
+							if (varbit.getId() == i)
+							{
+								name = String.format("%s(%d)", varbit.name(), i);
+								break;
+							}
+						}
+						// Might not want to call getTickCount over and over since it can probably be done once.
+						// Using tick is potentially unsafe but probably won't make too much of a difference.
+						log.info("Pushing out a new update!");
+						updatesToPush.add(new VarbitUpdate(i, name, old, neew, tick));
 					}
 				}
-				// Might not want to call getTickCount over and over since it can probably be done once.
-				// Using tick is potentially unsafe but probably won't make too much of a difference.
-				log.info("Pushing out a new update!");
-				updatesToPush.add(new VarbitUpdate(i, name, old, neew, tick));
 			}
 		}
-
+		finally
+		{
+			isRunningLock.readLock().unlock();
+		}
 	}
 
 
@@ -236,39 +248,38 @@ public class VarbitsPlugin extends Plugin
 	{
 		// Update tick value.
 		tick = client.getTickCount();
-
 		// Clone the vector for sync safety.
-		if (updatesToPush.size() > 0)
+		isRunningLock.readLock().lock();
+		try
 		{
-			Vector<VarbitUpdate> updatesClone = (Vector) updatesToPush.clone();
-
-			// Every game tick, push out all varbit updates.
-
-			// Construct the params for the POST request.
-			// Session needs to be uniquely generated
-			String requestBody = "{\"session\": \"" + session + "\",\"info\":[";
-			requestBody += StringUtils.join(updatesClone, ',');
-			requestBody += "]}";
-
-			// Construct the request.
-			isRunningLock.readLock().lock();
-			try
+			if (isRunning)
 			{
-				if (isRunning)
+				if (updatesToPush.size() > 0)
 				{
+					Vector<VarbitUpdate> updatesClone = (Vector) updatesToPush.clone();
+
+					// Every game tick, push out all varbit updates.
+
+					// Construct the params for the POST request.
+					// Session needs to be uniquely generated
+					String requestBody = "{\"session\": \"" + session + "\",\"info\":[";
+					requestBody += StringUtils.join(updatesClone, ',');
+					requestBody += "]}";
+
+					// Construct the request.
 					HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://localhost:3001/updateMany")).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
 
 					// Send out async request.
 					httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+
+					// Clear the updates that have been pushed.
+					updatesToPush.removeAll(updatesClone);
 				}
 			}
-			finally
-			{
-				isRunningLock.readLock().unlock();
-			}
-
-			// Clear the updates that have been pushed.
-			updatesToPush.removeAll(updatesClone);
+		}
+		finally
+		{
+			isRunningLock.readLock().unlock();
 		}
 	}
 }
