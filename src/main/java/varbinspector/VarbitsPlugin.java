@@ -86,7 +86,7 @@ public class VarbitsPlugin extends Plugin
 	{
 		log.info("Varbits started!");
 		varbits = HashMultimap.create();
-		session = UUID.randomUUID().toString();
+		session = config.sessionValue();
 		updatesToPush = new Vector<>();
 
 		if(oldVarps == null)
@@ -111,6 +111,7 @@ public class VarbitsPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		log.info("Varbits stopped!");
+		oldVarps = null;
 	}
 
 	@Subscribe
