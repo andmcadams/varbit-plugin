@@ -10,11 +10,8 @@ import java.net.http.HttpResponse;
 import java.util.Vector;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
-import net.runelite.api.GameState;
 import net.runelite.api.Varbits;
-import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.VarbitComposition;
@@ -46,7 +43,6 @@ public class VarbitsPlugin extends Plugin
 
 	private int tick = 0;
 	private int[] oldVarps = null;
-	private int[] oldVarps2 = null;
 
 	private Vector<VarbitUpdate> updatesToPush;
 
@@ -59,10 +55,7 @@ public class VarbitsPlugin extends Plugin
 		varbits = HashMultimap.create();
 
 		if(oldVarps == null)
-		{
 			oldVarps = new int[client.getVarps().length];
-			oldVarps2 = new int[client.getVarps().length];
-		}
 
 		clientThread.invoke(() -> {
 			IndexDataBase indexVarbits = client.getIndexConfig();
@@ -84,15 +77,6 @@ public class VarbitsPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		log.info("Varbits stopped!");
-	}
-
-	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
-	{
-		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
-		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Varbits says " + config.greeting(), null);
-		}
 	}
 
 	@Subscribe
