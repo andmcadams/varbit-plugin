@@ -7,8 +7,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.UUID;
 import java.util.Vector;
 import javax.inject.Inject;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Varbits;
@@ -48,11 +50,16 @@ public class VarbitsPlugin extends Plugin
 
 	private Multimap<Integer, Integer> varbits;
 
+	@Getter
+	private String session;
+
 	@Override
 	protected void startUp() throws Exception
 	{
 		log.info("Varbits started!");
 		varbits = HashMultimap.create();
+		session = UUID.randomUUID().toString();
+		updatesToPush = new Vector<>();
 
 		if(oldVarps == null)
 			oldVarps = new int[client.getVarps().length];
@@ -70,7 +77,6 @@ public class VarbitsPlugin extends Plugin
 			}
 		});
 
-		updatesToPush = new Vector<>();
 	}
 
 	@Override
@@ -128,7 +134,6 @@ public class VarbitsPlugin extends Plugin
 
 			// Construct the params for the POST request.
 			// Session needs to be uniquely generated
-			int session = 0;
 			String requestBody = "{\"session\": \"" + session + "\",\"info\":[";
 			requestBody += StringUtils.join(updatesClone, ',');
 			requestBody += "]}";
