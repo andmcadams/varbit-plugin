@@ -64,9 +64,6 @@ public class VarbitsPlugin extends Plugin
 	private Client client;
 
 	@Inject
-	private VarbitsConfig config;
-
-	@Inject
 	private ClientThread clientThread;
 
 	private static final int VARBITS_ARCHIVE_ID = 14;
@@ -86,7 +83,7 @@ public class VarbitsPlugin extends Plugin
 	{
 		log.info("Varbits started!");
 		varbits = HashMultimap.create();
-		session = config.sessionValue();
+		session = UUID.randomUUID().toString();
 		updatesToPush = new Vector<>();
 
 		if(oldVarps == null)
@@ -177,11 +174,5 @@ public class VarbitsPlugin extends Plugin
 			// Clear the updates that have been pushed.
 			updatesToPush.removeAll(updatesClone);
 		}
-	}
-
-	@Provides
-	VarbitsConfig provideConfig(ConfigManager configManager)
-	{
-		return configManager.getConfig(VarbitsConfig.class);
 	}
 }
