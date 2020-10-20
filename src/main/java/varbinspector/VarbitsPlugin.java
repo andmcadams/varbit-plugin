@@ -1,3 +1,31 @@
+/*
+ * Copyright (c) 2018 Abex
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * Modified by andmcadams
+ */
 package varbinspector;
 
 import com.google.common.collect.HashMultimap;
@@ -7,8 +35,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.UUID;
 import java.util.Vector;
 import javax.inject.Inject;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Varbits;
@@ -34,9 +64,6 @@ public class VarbitsPlugin extends Plugin
 	private Client client;
 
 	@Inject
-	private VarbitsConfig config;
-
-	@Inject
 	private ClientThread clientThread;
 
 	private static final int VARBITS_ARCHIVE_ID = 14;
@@ -48,11 +75,16 @@ public class VarbitsPlugin extends Plugin
 
 	private Multimap<Integer, Integer> varbits;
 
+	@Getter
+	private String session;
+
 	@Override
 	protected void startUp() throws Exception
 	{
 		log.info("Varbits started!");
 		varbits = HashMultimap.create();
+		session = UUID.randomUUID().toString();
+		updatesToPush = new Vector<>();
 
 		if(oldVarps == null)
 			oldVarps = new int[client.getVarps().length];
@@ -70,13 +102,13 @@ public class VarbitsPlugin extends Plugin
 			}
 		});
 
-		updatesToPush = new Vector<>();
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
 		log.info("Varbits stopped!");
+		oldVarps = null;
 	}
 
 	@Subscribe
@@ -128,7 +160,6 @@ public class VarbitsPlugin extends Plugin
 
 			// Construct the params for the POST request.
 			// Session needs to be uniquely generated
-			int session = 0;
 			String requestBody = "{\"session\": \"" + session + "\",\"info\":[";
 			requestBody += StringUtils.join(updatesClone, ',');
 			requestBody += "]}";
@@ -143,11 +174,5 @@ public class VarbitsPlugin extends Plugin
 			// Clear the updates that have been pushed.
 			updatesToPush.removeAll(updatesClone);
 		}
-	}
-
-	@Provides
-	VarbitsConfig provideConfig(ConfigManager configManager)
-	{
-		return configManager.getConfig(VarbitsConfig.class);
 	}
 }
