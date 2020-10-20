@@ -30,24 +30,28 @@ package varbinspector;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import com.google.inject.Provides;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Clipboard;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.UUID;
 import java.util.Vector;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.inject.Inject;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Varbits;
+import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.VarbitComposition;
 import net.runelite.api.IndexDataBase;
 import net.runelite.client.callback.ClientThread;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -78,37 +82,120 @@ public class VarbitsPlugin extends Plugin
 	@Getter
 	private String session;
 
+	private String SETUUID_COMMAND = "setuuid";
+	private String GETUUID_COMMAND = "getuuid";
+	private String START_COMMAND = "startrec";
+	private String STOP_COMMAND = "stoprec";
+	private Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+
+	private HttpClient httpClient = HttpClient.newHttpClient();
+
+	private ReadWriteLock isRunningLock = new ReentrantReadWriteLock();
+	private boolean isRunning = false;
+
 	@Override
 	protected void startUp() throws Exception
 	{
 		log.info("Varbits started!");
-		varbits = HashMultimap.create();
-		session = UUID.randomUUID().toString();
-		updatesToPush = new Vector<>();
+	}
 
-		if(oldVarps == null)
-			oldVarps = new int[client.getVarps().length];
+	private void beginRecording()
+	{
+		isRunningLock.writeLock().lock();
+		try {
+			varbits = HashMultimap.create();
+			session = UUID.randomUUID().toString();
+			updatesToPush = new Vector<>();
 
-		clientThread.invoke(() -> {
-			IndexDataBase indexVarbits = client.getIndexConfig();
-			final int[] varbitIds = indexVarbits.getFileIds(VARBITS_ARCHIVE_ID);
-			for (int id : varbitIds)
-			{
-				VarbitComposition varbit = client.getVarbit(id);
-				if (varbit != null)
+			if(oldVarps == null)
+				oldVarps = new int[client.getVarps().length];
+
+			clientThread.invoke(() -> {
+				IndexDataBase indexVarbits = client.getIndexConfig();
+				final int[] varbitIds = indexVarbits.getFileIds(VARBITS_ARCHIVE_ID);
+				for (int id : varbitIds)
 				{
-					varbits.put(varbit.getIndex(), id);
+					VarbitComposition varbit = client.getVarbit(id);
+					if (varbit != null)
+					{
+						varbits.put(varbit.getIndex(), id);
+					}
 				}
-			}
-		});
+			});
 
+			this.isRunning = true;
+		}
+		finally {
+			isRunningLock.writeLock().unlock();
+		}
+	}
+
+	private void stopRecording()
+	{
+		isRunningLock.writeLock().lock();
+		try
+		{
+			isRunning = false;
+			oldVarps = null;
+			session = null;
+		}
+		finally
+		{
+			isRunningLock.writeLock().unlock();
+		}
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
 		log.info("Varbits stopped!");
-		oldVarps = null;
+		stopRecording();
+	}
+
+	@Subscribe
+	public void onCommandExecuted(CommandExecuted commandExecuted)
+	{
+		String command = commandExecuted.getCommand();
+		String[] args = commandExecuted.getArguments();
+
+		if (command.equals(SETUUID_COMMAND))
+		{
+			isRunningLock.readLock().lock();
+			try
+			{
+				if (!isRunning)
+				{
+					log.info("setuuid command");
+					if (args.length > 0)
+						session = args[0];
+					else
+						log.warn("setuuid called without a String argument. UUID not set.");
+				}
+				else
+					log.info("setuuid cannot be called while recording varbits.");
+			}
+			finally
+			{
+				isRunningLock.readLock().unlock();
+			}
+		}
+		else if(command.equals(GETUUID_COMMAND))
+		{
+			log.info("getuuid command");
+			// Put the UUID in the clipboard
+			StringSelection stringSelection = new StringSelection(session);
+			clipboard.setContents(stringSelection, null);
+		}
+		else if(command.equals(START_COMMAND))
+		{
+			log.info("startrec command");
+			this.beginRecording();
+		}
+		else if(command.equals(STOP_COMMAND))
+		{
+			log.info("stoprec command");
+			this.stopRecording();
+		}
 	}
 
 	@Subscribe
@@ -143,7 +230,6 @@ public class VarbitsPlugin extends Plugin
 
 	}
 
-	private HttpClient httpClient = HttpClient.newHttpClient();
 
 	@Subscribe
 	public void onGameTick(GameTick gameTick)
@@ -164,12 +250,22 @@ public class VarbitsPlugin extends Plugin
 			requestBody += StringUtils.join(updatesClone, ',');
 			requestBody += "]}";
 
-			log.info(requestBody);
 			// Construct the request.
-			HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://localhost:3001/updateMany")).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
+			isRunningLock.readLock().lock();
+			try
+			{
+				if (isRunning)
+				{
+					HttpRequest request = HttpRequest.newBuilder().uri(URI.create("http://localhost:3001/updateMany")).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(requestBody)).build();
 
-			// Send out async request.
-			httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+					// Send out async request.
+					httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+				}
+			}
+			finally
+			{
+				isRunningLock.readLock().unlock();
+			}
 
 			// Clear the updates that have been pushed.
 			updatesToPush.removeAll(updatesClone);
