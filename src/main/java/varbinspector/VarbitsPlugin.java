@@ -218,8 +218,6 @@ public class VarbitsPlugin extends Plugin
 					int neew = client.getVarbitValue(varps, i);
 					if (old != neew)
 					{
-						client.setVarbitValue(oldVarps, i, neew);
-
 						String name = Integer.toString(i);
 						for (Varbits varbit : Varbits.values())
 						{
@@ -235,6 +233,7 @@ public class VarbitsPlugin extends Plugin
 						updatesToPush.add(new VarbitUpdate(i, name, old, neew, tick));
 					}
 				}
+				System.arraycopy(client.getVarps(), 0, oldVarps, 0, oldVarps.length);
 			}
 		}
 		finally
