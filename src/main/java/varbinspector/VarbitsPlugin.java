@@ -111,6 +111,7 @@ public class VarbitsPlugin extends Plugin
 			if(oldVarps == null)
 				oldVarps = new int[client.getVarps().length];
 
+			System.arraycopy(client.getVarps(), 0, oldVarps, 0, oldVarps.length);
 			clientThread.invoke(() -> {
 				IndexDataBase indexVarbits = client.getIndexConfig();
 				final int[] varbitIds = indexVarbits.getFileIds(VARBITS_ARCHIVE_ID);
