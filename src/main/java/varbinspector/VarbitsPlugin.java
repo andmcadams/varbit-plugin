@@ -113,6 +113,8 @@ public class VarbitsPlugin extends Plugin
 
 			System.arraycopy(client.getVarps(), 0, oldVarps, 0, oldVarps.length);
 			clientThread.invoke(() -> {
+				if (client.getIndexConfig() == null)
+					return false;
 				IndexDataBase indexVarbits = client.getIndexConfig();
 				final int[] varbitIds = indexVarbits.getFileIds(VARBITS_ARCHIVE_ID);
 				for (int id : varbitIds)
@@ -123,6 +125,7 @@ public class VarbitsPlugin extends Plugin
 						varbits.put(varbit.getIndex(), id);
 					}
 				}
+				return true;
 			});
 
 			this.isRunning = true;
@@ -233,7 +236,7 @@ public class VarbitsPlugin extends Plugin
 						updatesToPush.add(new VarbitUpdate(i, name, old, neew, tick));
 					}
 				}
-				System.arraycopy(client.getVarps(), 0, oldVarps, 0, oldVarps.length);
+				oldVarps[index] = varps[index];
 			}
 		}
 		finally
